@@ -758,6 +758,17 @@ Same as Add to Basket.
 }
 ```
 
+#### Total Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `TotalProductsPrice` | number | Sum of the product lines |
+| `TotalPrice` | number | Products plus delivery and fees |
+| `DeliveryPrice` | number | Delivery fee |
+| `NumberOfProducts` | number | Item count (sum of quantities) |
+| `MinimumOrderTotal` | number | Minimum products total to place an order (500 in 2026-11) |
+| `IsMinTotalValid` | boolean | Whether `TotalProductsPrice` reaches the minimum |
+
 #### Line Item Fields
 
 | Field | Type | Description |
@@ -1041,12 +1052,32 @@ GET https://www.nemlig.com/webapi/Order/DeliverySpot
 | `Id` | string | Order ID |
 | `CustomerName` | string | Customer name |
 | `OrderNumber` | string | Order number |
-| `State` | string | Order state (e.g., "Reorder") |
-| `TimeSlot` | object | Selected delivery time window |
-| `EditDeadline` | string | Last time order can be edited |
-| `Progress` | number | Order progress (0.0 to 1.0) |
-| `DeliveryTime` | string | Actual delivery time (null if not delivered) |
-| `DeliveryInterval` | object | Valid delivery interval range |
+| `State` | string | Delivery state, see below |
+| `TimeSlot` | object | Selected delivery window (UTC) |
+| `EditDeadline` | string | Last time the order can be edited (UTC) |
+| `Progress` | number | Delivery progress, 0.0 to 1.0, see below |
+| `DeliveryTime` | string | Live ETA (UTC) while the order is out for delivery; null without an estimate |
+| `DeliveryInterval` | object | ETA ±20 minutes; `0001-01-01`..`9999-12-31` without an estimate |
+
+#### Delivery States
+
+Observed by polling one delivery every 2 minutes (2026-11-02, window 09:00-14:00 Danish time):
+
+| State | When |
+|-------|------|
+| `ReadyForDelivery` | Order closed for edits, delivery day before the window opens |
+| `OngoingDelivery` | From the window start until the drop-off |
+| `CompletedDelivery` | After the drop-off (here 6 minutes after `Progress` reached 1.0) |
+| `Reorder` | Seen in older captures with `Progress` 1.0, presumably later after delivery |
+
+- `DeliveryTime` is **not** the actual delivery time. It is an ETA that updates during
+  the delivery (it moved within ±15 minutes over three hours) and keeps the last
+  estimate after the drop-off.
+- `Progress` stays 0.0 before the window opens, then rises about 0.02 every 3 minutes
+  and reaches 1.0 at the ETA. It tracks time towards the ETA, not route position.
+- The order history still had the order at `Status` 2 when `CompletedDelivery`
+  appeared, so DeliverySpot is the quicker source for "delivered".
+- All times here are UTC (`Z`), unlike the order history, which uses Danish local time.
 
 #### Cookies Set
 
@@ -1640,7 +1671,12 @@ The response contains an `Orders` array and a `NumberOfPages` field for paginati
 | `4` | Delivered (seen in older captures) |
 
 **Note:** the live API returns `OrderDate` as Danish display text (`"02/11-2026 kl. 09-14"`),
-not ISO as shown above. `DeliveryTime.Start`/`End` are ISO.
+not ISO as shown above. `DeliveryTime.Start`/`End` are ISO **without a time zone, in Danish
+local time** (`"2026-11-02T09:00:00"`), while DeliverySpot gives the same window in UTC
+(`"2026-11-02T08:00:00Z"`). Parse them as Europe/Copenhagen.
+
+An order out for delivery has `Status` 2, which it kept past the drop-off; see Delivery
+States under DeliverySpot.
 
 #### Response Fields
 
@@ -1772,5 +1808,7 @@ The response contains a `Lines` array with all products from the order:
 - All requests go through Cloudflare
 - The API uses JWT tokens from Keycloak (`keycloak.mgmt.prod.k8s.nemlig`)
 - Bearer tokens expire in 5 minutes, but session cookies (`.ASPXAUTH`) last 1 year
+- Logging in again does not touch the basket: over 20+ logins in a day (with `DoMerge: true`)
+  the `BasketGuid` and its lines stayed the same
 - Always include `X-Correlation-Id` header with a UUID for request tracing
 - The `Version` header value may need updating as the app version changes
