@@ -155,8 +155,8 @@ def _fmt_basket_line(ln: dict) -> str:
     brand = f" ({ln['Brand']})" if ln.get("Brand") else ""
     return (
         f"[{ln.get('Id')}] {ln.get('Name')}{brand} "
-        f"x{ln.get('Quantity', 0)} @ {ln.get('ItemPrice', 0):.2f} kr = {ln.get('Price', 0):.2f} kr"
-        + (f" {tags}" if (tags := nemlig_cli.product_tags(ln)) else "")
+        f"x{ln.get('Quantity', 0)} @ {ln.get('ItemPrice', 0):.2f} kr = {nemlig_cli.line_price(ln):.2f} kr"
+        + "".join(f" {t}" for t in (nemlig_cli.product_tags(ln), nemlig_cli.stock_tag(ln)) if t)
     )
 
 
@@ -166,10 +166,11 @@ def _fmt_basket(basket: dict) -> str:
         return "Basket is empty."
     out = [f"Basket ({len(lines)} lines):"]
     out += [_fmt_basket_line(ln) for ln in lines]
-    total = sum(ln.get("Price", 0) for ln in lines)
     if discount := basket.get("TotalProductDiscountPrice"):
         out.append(f"Campaign savings: {discount:.2f} kr")
-    out.append(f"Total: {total:.2f} kr")
+    out.append(f"Total: {nemlig_cli.basket_total(basket):.2f} kr")
+    if cut := [ln.get("Name") for ln in lines if nemlig_cli.stock_tag(ln)]:
+        out.append(f"Cut back by nemlig for lack of stock: {', '.join(cut)}")
     return "\n".join(out)
 
 
@@ -208,7 +209,9 @@ def get_product_details(product_id: str) -> str:
 def view_basket() -> str:
     """View the current nemlig.com basket: one line per item with product ID,
     name, quantity, unit price, line total and any campaign tag, plus campaign
-    savings and the basket total."""
+    savings and the basket total. Lines nemlig cut back for lack of stock are tagged
+    [SOLD OUT: …] / [LOW STOCK: …] and listed after the total; tell the user and
+    suggest an alternative."""
     return _fmt_basket(_call(nemlig_cli.get_basket))
 
 
@@ -225,7 +228,7 @@ def add_to_basket(product_id: str, quantity: int = 1) -> str:
         raise ToolError("quantity must be 0 or greater (0 removes the product).")
     result = _call(nemlig_cli.add_to_basket, product_id, quantity)
     lines = result.get("Lines", [])
-    total = sum(ln.get("Price", 0) for ln in lines)
+    total = nemlig_cli.basket_total(result)
     line = next((ln for ln in lines if ln.get("Id") == product_id), None)
     if quantity == 0:
         head = f"Removed {product_id}."

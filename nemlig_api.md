@@ -787,6 +787,34 @@ Same as Add to Basket.
 | `DiscountSavings` | number | Amount saved from discount |
 | `Campaign` | object | Campaign/offer details if applicable |
 | `Labels` | array | Product labels (e.g., "Øko", "Vegansk") |
+| `CheckoutHistoricalRecord` | object | Stock adjustment, see below |
+| `RemainingStock` | number | `null` normally; `0` on a line that ran out of stock |
+
+#### Out-of-Stock Lines
+
+When a product in the basket runs out, nemlig keeps the line but cuts its `Quantity`
+(the web app lists it under "Ændringer i din kurv", marked "Udsolgt"):
+
+```json
+{
+  "Id": "5064869",
+  "Quantity": 0,
+  "ItemPrice": 14.95,
+  "Price": 14.95,
+  "RemainingStock": 0,
+  "CheckoutHistoricalRecord": {
+    "AvailabilityStatus": 1,
+    "OrderedQuantity": 1,
+    "AdjustedToQuantity": 0,
+    "HasAlternativeProducts": false
+  }
+}
+```
+
+- `OrderedQuantity` is what the user asked for and `AdjustedToQuantity` what is left.
+  On normal lines all four record fields are `0`/`false`.
+- A line cut to 0 keeps its old `Price`, so summing `Price` over the lines overcounts.
+  `TotalProductsPrice` and `NumberOfProducts` leave it out.
 
 #### Campaign Object
 

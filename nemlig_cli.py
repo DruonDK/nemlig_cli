@@ -745,16 +745,42 @@ def format_product(product: dict) -> str:
     return line
 
 
+def stock_tag(line: dict) -> str:
+    """Tag for a basket line nemlig cut back for lack of stock, or "".
+
+    The web app lists these under "Ændringer i din kurv". The line stays in the basket
+    with the reduced `Quantity`, and a line cut to 0 keeps its old `Price`.
+    """
+    record = line.get("CheckoutHistoricalRecord") or {}
+    wanted = record.get("OrderedQuantity") or 0
+    now = record.get("AdjustedToQuantity") or 0
+    if now >= wanted:
+        return ""
+    return f"[{'SOLD OUT' if now == 0 else 'LOW STOCK'}: wanted {wanted}, now {now}]"
+
+
+def line_price(line: dict) -> float:
+    """The line's total price, 0 for a line that was cut to 0."""
+    return line.get("Price", 0) if line.get("Quantity") else 0.0
+
+
+def basket_total(basket: dict) -> float:
+    """The products total nemlig shows, without lines cut to 0 for lack of stock."""
+    if "TotalProductsPrice" in basket:
+        return basket["TotalProductsPrice"]
+    return sum(line_price(line) for line in basket.get("Lines", []))
+
+
 def format_basket_line(line: dict) -> str:
     """Format a basket line item for display."""
     name = line.get("Name", "Unknown")
     brand = line.get("Brand", "")
     quantity = line.get("Quantity", 0)
     item_price = line.get("ItemPrice", 0)
-    total_price = line.get("Price", 0)
+    total_price = line_price(line)
     product_id = line.get("Id", "")
 
-    tags = product_tags(line)
+    tags = " ".join(t for t in (product_tags(line), stock_tag(line)) if t)
     tags = f" {tags}" if tags else ""
     return f"  [{product_id}] {name} ({brand}) x{quantity} @ {item_price:.2f} kr = {total_price:.2f} kr{tags}"
 
@@ -961,15 +987,13 @@ def cmd_basket(auth: AuthTokens, args: argparse.Namespace) -> int:
 
     print(f"\nBasket ({len(lines)} items):\n")
 
-    total = 0
     for line in lines:
         print(format_basket_line(line))
-        total += line.get("Price", 0)
 
     discount = basket.get("TotalProductDiscountPrice") or 0
     if discount:
         print(f"\n  Campaign savings: {discount:.2f} kr")
-    print(f"\n  Total: {total:.2f} kr")
+    print(f"\n  Total: {basket_total(basket):.2f} kr")
 
     return 0
 
@@ -1004,8 +1028,7 @@ def cmd_add(auth: AuthTokens, args: argparse.Namespace) -> int:
         print(f"Product {product_id} added to basket.")
 
     # Show basket total
-    total = sum(line.get("Price", 0) for line in lines)
-    print(f"\nBasket total: {total:.2f} kr ({len(lines)} items)")
+    print(f"\nBasket total: {basket_total(result):.2f} kr ({len(lines)} items)")
 
     return 0
 
