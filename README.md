@@ -63,7 +63,8 @@ All commands are available via the justfile:
 just search "cocio"              # Search products
 just details 701025              # Product details
 just basket                      # View basket
-just add 701025 2                # Add product (quantity optional)
+just add 701025 2                # Set product quantity (quantity optional, default 1)
+just add 701025 0                # Remove product from basket
 just history                     # Order history
 just history 12345678            # Order details
 ```
