@@ -96,7 +96,7 @@ nemlig-mcp                    # after the global install; or: uv run python serv
 | `order_history(limit=10, order_id=None)` | read | Recent orders, or one order's line items |
 | `list_shopping_lists()` | read | Saved lists: ID, name, product count, total |
 | `list_delivery_slots(days=8)` | read | Bookable slots per day: ID, window, price; marks the selected slot and flex (`uden opsyn`) slots |
-| `add_to_basket(product_id, quantity=1)` | **write** | Adds to the live basket |
+| `add_to_basket(product_id, quantity=1)` | **write** | Sets the product's quantity in the live basket (absolute, not added; 0 removes) |
 | `delete_from_cart(product_id)` | **write** | Removes a product line from the live basket |
 | `add_shopping_list(list_name_or_id)` | **write** | Adds every product from a saved list (name is case-insensitive) |
 | `set_delivery_time(timeslot_id)` | **money** | Reserves a delivery slot for ~20 min; final at checkout — confirm date/window/price with the user first |

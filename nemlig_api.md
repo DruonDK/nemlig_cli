@@ -1634,9 +1634,13 @@ The response contains an `Orders` array and a `NumberOfPages` field for paginati
 
 | Status | Description |
 |--------|-------------|
-| `4` | Delivered |
-| `2` | Processing |
 | `1` | Pending |
+| `2` | Processing |
+| `3` | Delivered (what the live API returns for every past order, 2026-11) |
+| `4` | Delivered (seen in older captures) |
+
+**Note:** the live API returns `OrderDate` as Danish display text (`"02/11-2026 kl. 09-14"`),
+not ISO as shown above. `DeliveryTime.Start`/`End` are ISO.
 
 #### Response Fields
 

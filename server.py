@@ -215,15 +215,25 @@ def view_basket() -> str:
 @mcp.tool
 @_safe
 def add_to_basket(product_id: str, quantity: int = 1) -> str:
-    """Add a product to the nemlig.com basket. MUTATES the family's live basket
-    on nemlig.com — only call when the user has asked for this specific product.
-    Returns the added line and the new basket total."""
+    """Set the quantity of a product in the nemlig.com basket. `quantity` is the
+    ABSOLUTE quantity the basket should end up with, not an amount to add: if the
+    basket already holds 3 and you pass 1, it ends up with 1. Check view_basket
+    first when the product may already be there. 0 removes the product.
+    MUTATES the family's live basket on nemlig.com — only call when the user has
+    asked for this specific product. Returns the resulting line and basket total."""
+    if quantity < 0:
+        raise ToolError("quantity must be 0 or greater (0 removes the product).")
     result = _call(nemlig_cli.add_to_basket, product_id, quantity)
     lines = result.get("Lines", [])
     total = sum(ln.get("Price", 0) for ln in lines)
-    added = next((ln for ln in lines if ln.get("Id") == product_id), None)
-    added_str = _fmt_basket_line(added) if added else f"Product {product_id} added."
-    return f"Added: {added_str}\nBasket total: {total:.2f} kr ({len(lines)} lines)"
+    line = next((ln for ln in lines if ln.get("Id") == product_id), None)
+    if quantity == 0:
+        head = f"Removed {product_id}."
+    elif line:
+        head = f"Basket now has: {_fmt_basket_line(line)}"
+    else:
+        head = f"Product {product_id} not in returned basket (out of stock or unknown ID?)."
+    return f"{head}\nBasket total: {total:.2f} kr ({len(lines)} lines)"
 
 
 @mcp.tool

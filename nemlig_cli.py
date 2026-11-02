@@ -222,10 +222,12 @@ class ProductNotFoundError(Exception):
     pass
 
 
-# Order status codes from the API
+# Order status codes from the API. 3 is what GetBasicOrderHistory returns for
+# every past, delivered order (live API, 2026-11); 4 came from older captures.
 ORDER_STATUS_MAP = {
     1: "Pending",
     2: "Processing",
+    3: "Delivered",
     4: "Delivered",
 }
 
@@ -757,19 +759,33 @@ def format_basket_line(line: dict) -> str:
     return f"  [{product_id}] {name} ({brand}) x{quantity} @ {item_price:.2f} kr = {total_price:.2f} kr{tags}"
 
 
+def order_date(order: dict) -> str:
+    """Return the order's date as YYYY-MM-DD, or "Unknown".
+
+    The live API returns OrderDate as Danish display text ("02/11-2026 kl. 09-14");
+    older captures had ISO ("2025-11-25T06:07:18Z"). Both are handled, falling
+    back to the delivery window's start date.
+    """
+    raw = order.get("OrderDate") or ""
+    m = re.match(r"(\d{2})/(\d{2})-(\d{4})", raw)
+    if m:
+        day, month, year = m.groups()
+        return f"{year}-{month}-{day}"
+    if re.match(r"\d{4}-\d{2}-\d{2}", raw):
+        return raw[:10]
+    start = (order.get("DeliveryTime") or {}).get("Start") or ""
+    if re.match(r"\d{4}-\d{2}-\d{2}", start):
+        return start[:10]
+    return "Unknown"
+
+
 def format_order_summary(order: dict) -> str:
     """Format an order for the history list view."""
     order_num = order.get("OrderNumber", "Unknown")
     order_id = order.get("Id", "")
     total = order.get("Total", 0)
     status_code = order.get("Status", 0)
-    order_date = order.get("OrderDate", "")
-
-    # Parse date for display (ISO format: 2025-11-25T06:07:18Z)
-    if order_date:
-        date_part = order_date.split("T")[0]
-    else:
-        date_part = "Unknown"
+    date_part = order_date(order)
 
     status = ORDER_STATUS_MAP.get(status_code, f"Status {status_code}")
 
