@@ -13,6 +13,7 @@ This fork deliberately drops upstream's non-nemlig features (AI meal planner, Go
 - Saved shopping lists (favoritter) — list them, add a whole list to the basket
 - Delivery time slots — list available slots, reserve one
 - Order history viewing
+- This week's offers — category overview, or products on offer matching a keyword
 - MCP server exposing all of the above as tools
 
 ### Additions in this fork
@@ -23,6 +24,7 @@ This fork deliberately drops upstream's non-nemlig features (AI meal planner, Go
 | Remove from basket | `remove_from_basket` | — | `delete_from_cart` |
 | Shopping lists | `get_shopping_lists`, `add_shopping_list_to_basket` | — | `list_shopping_lists`, `add_shopping_list` |
 | Delivery slots | `get_delivery_days`, `update_delivery_time` | — | `list_delivery_slots`, `set_delivery_time` |
+| Offers | `get_offer_overview`, `search_products(offers_only=True)` | `offers [QUERY]` | `list_offers` |
 
 The new endpoints are library + MCP only — they have no `argparse` subcommand yet. Call them from Python, or through the MCP server.
 
@@ -67,6 +69,8 @@ just add 701025 2                # Set product quantity (quantity optional, defa
 just add 701025 0                # Remove product from basket
 just history                     # Order history
 just history 12345678            # Order details
+just offers                      # This week's offer categories with counts
+just offers kylling              # Products on offer matching a keyword
 ```
 
 From any terminal, after the global install:
@@ -92,6 +96,7 @@ nemlig-mcp                    # after the global install; or: uv run python serv
 |---|---|---|
 | `search_products(query, limit=10)` | read | One line per product: `[id] name (brand) — price (unit price) — description [stock]` |
 | `get_product_details(product_id)` | read | Description, price, unit price, contents, nutrition, availability |
+| `list_offers(query="", limit=20)` | read | No query: offer categories with counts from nemlig.com/tilbud. With query: products on offer matching the keyword |
 | `view_basket()` | read | One line per basket item plus the total |
 | `order_history(limit=10, order_id=None)` | read | Recent orders, or one order's line items |
 | `list_shopping_lists()` | read | Saved lists: ID, name, product count, total |
@@ -152,6 +157,8 @@ Note that this repo's own `.mcp.json` configures the **Chrome DevTools** MCP use
 | Add list to basket | `POST /webapi/basket/addShoppingListToBasket` |
 | Delivery days/slots | `GET /webapi/v2/Delivery/GetDeliveryDays` |
 | Reserve slot | `POST /webapi/Delivery/TryUpdateDeliveryTime?timeslotId=…` (empty body) |
+| Offer overview | `GET /tilbud?GetAsJson=1&t=…&d=1` — product list spots with `Heading` and `TotalProducts` |
+| Products on offer | search gateway `GET /search?…&tilbud=true` (the "Tilbud" facet) |
 
 Slot `Availability` is `0` when bookable; `Type` is `0` for a personal delivery and `1` for flex/`uden opsyn` (unattended).
 

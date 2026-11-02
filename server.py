@@ -197,6 +197,32 @@ def search_products(query: str, limit: int = 10) -> str:
 
 @mcp.tool
 @_safe
+def list_offers(query: str = "", limit: int = 20) -> str:
+    """List this week's offers on nemlig.com. Read-only.
+    Without query: an overview of the categories on nemlig's Tilbud page with
+    the number of products on offer in each (e.g. "Ugens Priskup", "Kød og fisk",
+    "Mejeri"); it gives counts only, not products.
+    With query: products on offer matching the keyword (e.g. "kylling", "ost",
+    "kaffe"), one line per product in the same format as search_products, every
+    line carrying a [SALE: ...] / [OFFER: N for X kr ...] / [MIX OFFER: ...] tag
+    with savings and end date. To answer "what's on offer in <category>", call
+    with a keyword for that category rather than the category name alone."""
+    if not query.strip():
+        groups = [g for g in _call(nemlig_cli.get_offer_overview) if g["total"]]
+        if not groups:
+            return "No offer categories found on nemlig.com/tilbud."
+        out = [f"Offers this week ({len(groups)} categories, counts only):"]
+        out += [f"{g['heading']}: {g['total']} products on offer" for g in groups]
+        out.append("Call list_offers with a keyword (e.g. 'kylling') to list the products.")
+        return "\n".join(out)
+    products = _call(nemlig_cli.search_products, query.strip(), limit=limit, offers_only=True)
+    if not products:
+        return f"No products on offer for '{query}'."
+    return "\n".join(_fmt_product(p) for p in products)
+
+
+@mcp.tool
+@_safe
 def get_product_details(product_id: str) -> str:
     """Get detailed information for a nemlig.com product by its product ID
     (description, price, unit price, campaign/offer, contents, nutrition, availability)."""

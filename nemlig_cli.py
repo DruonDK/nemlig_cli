@@ -9,6 +9,7 @@ Usage:
     python nemlig_cli.py basket
     python nemlig_cli.py add PRODUCT_ID [--quantity N]
     python nemlig_cli.py history [ORDER_ID]
+    python nemlig_cli.py offers [QUERY]
 
 Credentials are read from the NEMLIG_USER / NEMLIG_PASS environment variables,
 then the macOS Keychain (service "nemlig"), then ~/.config/nemlig/login.json.
@@ -370,9 +371,13 @@ def get_page_settings(auth: AuthTokens) -> dict:
     }
 
 
-def search_products(auth: AuthTokens, query: str, limit: int = 10) -> list:
+def search_products(auth: AuthTokens, query: str, limit: int = 10, offers_only: bool = False) -> list:
     """
     Search for products on nemlig.com using the full search API.
+
+    `offers_only` selects the search gateway's "Tilbud" facet (`tilbud=true`), so
+    only products with an active campaign are returned. Use query "*" to match
+    everything. See nemlig_api.md, "Offers".
 
     Returns a list of product dictionaries.
     """
@@ -400,6 +405,9 @@ def search_products(auth: AuthTokens, query: str, limit: int = 10) -> list:
     if page_settings.get("userId"):
         params["includeFavorites"] = page_settings["userId"]
 
+    if offers_only:
+        params["tilbud"] = "true"
+
     resp = auth.session.get(f"{SEARCH_API_URL}/search", headers=headers, params=params)
     resp.raise_for_status()
     data = resp.json()
@@ -408,6 +416,45 @@ def search_products(auth: AuthTokens, query: str, limit: int = 10) -> list:
     products_data = data.get("Products", {})
     products = products_data.get("Products", [])
     return products
+
+
+OFFER_PAGE_SPOTS = ("productlistshowallspot", "productlistonerowspot")
+
+
+def get_offer_overview(auth: AuthTokens) -> list[dict]:
+    """
+    Get the categories on nemlig's Tilbud page with the number of products on offer.
+
+    Fetches https://www.nemlig.com/tilbud as JSON and returns one dict per product
+    list spot: {"heading", "total", "url"} ("url" is the category's own offer page,
+    "" when it has none). The products themselves are not in this response; use
+    search_products(..., offers_only=True) to list products on offer.
+    See nemlig_api.md, "Offers".
+    """
+    page_settings = get_page_settings(auth)
+
+    headers = get_common_headers()
+    headers["Authorization"] = f"Bearer {auth.bearer_token}"
+    headers["X-XSRF-TOKEN"] = auth.xsrf_token
+
+    params = {"GetAsJson": "1", "t": page_settings["timeslotUtc"], "d": "1"}
+    resp = auth.session.get(f"{BASE_URL}/tilbud", headers=headers, params=params)
+    resp.raise_for_status()
+    data = resp.json()
+
+    groups = []
+    for item in data.get("content", []):
+        if item.get("TemplateName") not in OFFER_PAGE_SPOTS:
+            continue
+        heading = (item.get("Heading") or "").strip()
+        if not heading or heading.lower() == "sponsoreret":
+            continue
+        groups.append({
+            "heading": heading,
+            "total": item.get("TotalProducts") or 0,
+            "url": (item.get("SeeMoreLink") or {}).get("Url") or "",
+        })
+    return groups
 
 
 def get_basket(auth: AuthTokens) -> dict:
@@ -1051,6 +1098,38 @@ def cmd_details(auth: AuthTokens, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_offers(auth: AuthTokens, args: argparse.Namespace) -> int:
+    """Handle the offers command: overview of offer categories, or offers matching a keyword."""
+    query = args.query
+    limit = args.limit
+
+    if not query:
+        print("Fetching offer overview...", file=sys.stderr)
+        groups = get_offer_overview(auth)
+        groups = [g for g in groups if g["total"]]
+        if not groups:
+            print("No offer categories found.")
+            return 1
+        print(f"\nOffers this week ({len(groups)} categories):\n")
+        for g in groups:
+            print(f"  {g['heading']}: {g['total']} products on offer")
+        print("\nUse 'offers QUERY' to list products on offer matching a keyword.")
+        return 0
+
+    print(f"Searching offers for '{query}'...", file=sys.stderr)
+    products = search_products(auth, query, limit, offers_only=True)
+
+    if not products:
+        print(f"No products on offer for '{query}'.")
+        return 1
+
+    print(f"\nFound {len(products)} products on offer:\n")
+    for product in products:
+        print(format_product(product))
+
+    return 0
+
+
 def cmd_history(auth: AuthTokens, args: argparse.Namespace) -> int:
     """Handle the history command."""
     order_id = args.order_id
@@ -1121,6 +1200,8 @@ Examples:
   %(prog)s add 701025 -q 2
   %(prog)s basket
   %(prog)s history
+  %(prog)s offers
+  %(prog)s offers kylling
         """
     )
 
@@ -1157,6 +1238,13 @@ Examples:
     history_parser = subparsers.add_parser("history", help="Show order history")
     history_parser.add_argument("order_id", nargs="?", type=int, help="Order ID for details (optional)")
     history_parser.add_argument("-l", "--limit", type=int, default=10, help="Max orders to show (default: 10)")
+
+    # Offers command
+    offers_parser = subparsers.add_parser("offers", help="Show this week's offers")
+    offers_parser.add_argument(
+        "query", nargs="?", help="Keyword to search among products on offer (omit for a category overview)"
+    )
+    offers_parser.add_argument("-l", "--limit", type=int, default=20, help="Max products to show (default: 20)")
 
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
@@ -1216,6 +1304,8 @@ Examples:
             return cmd_add(auth, args)
         elif args.command == "history":
             return cmd_history(auth, args)
+        elif args.command == "offers":
+            return cmd_offers(auth, args)
         else:
             print(f"Unknown command: {args.command}", file=sys.stderr)
             return 1

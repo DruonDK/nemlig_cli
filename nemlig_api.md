@@ -364,6 +364,65 @@ Same as Quick Search.
 
 ---
 
+### Offers
+
+Captured 2026-11-02 (live API + browser network capture).
+
+#### Products on offer: the "Tilbud" facet
+
+[Full Search](#full-search) exposes facet queries in `Facets.FacetGroups[0]` (`FacetQueryGroup`):
+`discount` (Prismatch), `premium`, `oekologisk` and `tilbud`. A facet is selected by passing its
+`UrlName` as a query parameter with the value `true`:
+
+```http
+GET https://webapi.prod.knl.nemlig.it/searchgateway/api/search?query=kylling&take=20&skip=0&recipeCount=0&timestamp=…&timeslotUtc=…&deliveryZoneId=…&tilbud=true
+```
+
+Headers and the other parameters are the same as Full Search. The response is the same shape;
+`Facets.FacetGroups[0].Items[?UrlName=="tilbud"].IsSelected` is `true` and every product carries
+a `Campaign`. `query=*` matches the whole range (~6,600 products on offer on 2026-11-02 versus
+~9,400 in total, so "on offer" includes long-running mix offers, not only the weekly flyer).
+
+- `sortorder=price` / `sortorder=navn` sort the result but then ignore `take` (100 products come
+  back), so the client does not use it.
+- The `Varegruppe` facet field (`FacetField`, `UrlName: varegruppe`) could not be selected with any
+  parameter name tried (`varegruppe=Frost`, `facets=varegruppe:Frost`, …); category filtering is
+  done by keyword instead.
+
+#### Offer overview: the Tilbud page
+
+```http
+GET https://www.nemlig.com/tilbud?GetAsJson=1&t=<timeslotUtc>&d=1
+```
+
+A [Page Data](#page-data-api-getasjson) "Filter page". `content[]` holds `productlistshowallspot`
+and `productlistonerowspot` items, one per category, with `Heading`, `ProductGroupId`,
+`TotalProducts` and (for most) `SeeMoreLink.Url` to the category's own page (`/tilbud/koed-og-fisk`,
+…), which has the same structure one level down. The spots do **not** include the products.
+
+```json
+{
+  "TemplateName": "productlistshowallspot",
+  "Heading": "Kød og fisk",
+  "ProductGroupId": "b6885897-e134-44f8-8c44-ba3d99f699c5",
+  "TotalProducts": 75,
+  "SeeMoreLink": { "Url": "/tilbud/koed-og-fisk", "Type": "internal" }
+}
+```
+
+The website loads each spot's products with
+
+```http
+GET https://www.nemlig.com/webapi/<CombinedProductsAndSitecoreTimestamp>/<TimeslotUtc>/<DeliveryZoneId>/<UserId or 0>/Products/GetByProductGroupId?productGroupId=<ProductGroupId>&sortorder=default
+```
+
+which returns `{"Products": [<productlistitem>…]}` in the browser (also without cookies), but
+answers `500 {"Message":"An error has occurred."}` to this client with every combination of path
+values tried, so it depends on something in the browser's default request headers. Not used; the
+client lists products on offer through the `tilbud=true` facet instead.
+
+---
+
 ## Basket API
 
 ### Add to Basket

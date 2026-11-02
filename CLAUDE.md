@@ -10,6 +10,7 @@ just details 701025     # Product details
 just basket             # View basket
 just add 701025 2       # Add product
 just history            # Order history
+just offers [QUERY]     # Offer categories, or products on offer matching QUERY
 ```
 
 Requires `NEMLIG_USER` and `NEMLIG_PASS` environment variables.
@@ -30,7 +31,7 @@ Don't conflate them: `.mcp.json` in this repo configures the DevTools MCP, not `
 Thin layer over `nemlig_cli.py` — it imports the client and calls the same functions.
 **New endpoints go in `nemlig_cli.py`; `server.py` only exposes them.**
 
-Tools: `search_products`, `get_product_details`, `view_basket`, `order_history`,
+Tools: `search_products`, `list_offers`, `get_product_details`, `view_basket`, `order_history`,
 `list_shopping_lists`, `list_delivery_slots` (read-only) — `add_to_basket`,
 `delete_from_cart`, `add_shopping_list` (mutate the live basket) — `set_delivery_time`
 (money-relevant; confirm date/window/price with the user first).

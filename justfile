@@ -30,3 +30,7 @@ add PRODUCT_ID QUANTITY="1":
 # Show order history (optionally with ORDER_ID for details)
 history ORDER_ID="":
     {{cli}} history {{ORDER_ID}}
+
+# This week's offers: category overview, or products on offer matching QUERY
+offers QUERY="":
+    {{cli}} offers {{QUERY}}
