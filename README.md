@@ -97,7 +97,7 @@ nemlig-mcp                    # after the global install; or: uv run python serv
 | `search_products(query, limit=10)` | read | One line per product: `[id] name (brand) — price (unit price) — description [stock]` |
 | `get_product_details(product_id)` | read | Description, price, unit price, contents, nutrition, availability |
 | `list_offers(query="", limit=20)` | read | No query: offer categories with counts from nemlig.com/tilbud. With query: products on offer matching the keyword |
-| `view_basket()` | read | One line per basket item plus the total |
+| `view_basket()` | read | One line per basket item plus nemlig's total; lines nemlig cut back for lack of stock are tagged `[SOLD OUT]` / `[LOW STOCK]` |
 | `order_history(limit=10, order_id=None)` | read | Recent orders, or one order's line items |
 | `list_shopping_lists()` | read | Saved lists: ID, name, product count, total |
 | `list_delivery_slots(days=8)` | read | Bookable slots per day: ID, window, price; marks the selected slot and flex (`uden opsyn`) slots |
